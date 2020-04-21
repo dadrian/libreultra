@@ -16,7 +16,7 @@ COMPARE ?= 1
 # If NON_MATCHING is 1, define the NON_MATCHING and AVOID_UB macros when building (recommended)
 NON_MATCHING ?= 0
 # Build for the N64 (turn this off for ports)
-TARGET_N64 ?= 1
+TARGET_N64 ?= 0
 
 # Release
 
@@ -53,12 +53,12 @@ S_FILES := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.s))
 
 # Object files
 O_FILES := $(foreach file,$(C_FILES),$(BUILD_DIR)/$(file:.c=.o)) \
-           $(foreach file,$(S_FILES),$(BUILD_DIR)/$(file:.s=.o)) 
+           $(foreach file,$(S_FILES),$(BUILD_DIR)/$(file:.s=.o))
 
 # Automatic dependency files
 DEP_FILES := $(O_FILES:.o=.d)
 
-ALL_DIRS := $(BUILD_DIR) $(addprefix $(BUILD_DIR)/,$(SRC_DIRS)) 
+ALL_DIRS := $(BUILD_DIR) $(addprefix $(BUILD_DIR)/,$(SRC_DIRS))
 
 # Make sure build directory exists before compiling anything
 DUMMY != mkdir -p $(ALL_DIRS)
@@ -66,23 +66,25 @@ DUMMY != mkdir -p $(ALL_DIRS)
 ##################### Compiler Options #######################
 IRIX_ROOT := tools/ido
 
-ifeq ($(shell type mips-linux-gnu-ld >/dev/null 2>/dev/null; echo $$?), 0)
-  CROSS := mips-linux-gnu-
-else
-  CROSS := mips64-elf-
-endif
+#ifeq ($(shell type mips-linux-gnu-ld >/dev/null 2>/dev/null; echo $$?), 0)
+#  CROSS := mips-linux-gnu-
+#else
+#  CROSS := mips64-elf-
+#endif
+CROSS :=
 
 # check that either QEMU_IRIX is set or qemu-irix package installed
-ifndef QEMU_IRIX
-  QEMU_IRIX := $(shell which qemu-irix)
-  ifeq (, $(QEMU_IRIX))
-    $(error Please install qemu-irix package or set QEMU_IRIX env var to the full qemu-irix binary path)
-  endif
-endif
+#ifndef QEMU_IRIX
+#  QEMU_IRIX := $(shell which qemu-irix)
+#  ifeq (, $(QEMU_IRIX))
+#    $(error Please install qemu-irix package or set QEMU_IRIX env var to the full qemu-irix binary path)
+#  endif
+#endif
 
-AS        := $(QEMU_IRIX) -silent -L $(IRIX_ROOT) $(IRIX_ROOT)/usr/bin/as
-#AS		  := $(CROSS)as
-CC        := $(QEMU_IRIX) -silent -L $(IRIX_ROOT) $(IRIX_ROOT)/usr/bin/cc
+#AS        := $(QEMU_IRIX) -silent -L $(IRIX_ROOT) $(IRIX_ROOT)/usr/bin/as
+AS		  := $(CROSS)as
+#CC        := $(QEMU_IRIX) -silent -L $(IRIX_ROOT) $(IRIX_ROOT)/usr/bin/cc
+CC := $(CROSS)cc
 #AR        := $(QEMU_IRIX) -silent -L $(IRIX_ROOT) $(IRIX_ROOT)/usr/bin/ar
 CPP       := cpp -P
 LD        := $(CROSS)ld
@@ -90,7 +92,8 @@ AR        := $(CROSS)ar
 OBJDUMP   := $(CROSS)objdump
 OBJCOPY   := $(CROSS)objcopy
 
-ASM_OPT_FLAGS := -O1
+ASM_OPT_FLAGS :=
+# -O1
 
 $(BUILD_DIR)/src/gu/%.o: OPT_FLAGS := -O3
 $(BUILD_DIR)/src/gt/%.o: OPT_FLAGS := -O3
@@ -99,7 +102,7 @@ $(BUILD_DIR)/src/sp/%.o: OPT_FLAGS := -O3
 $(BUILD_DIR)/src/sched/%.o: OPT_FLAGS := -O3
 $(BUILD_DIR)/src/audio/%.o: OPT_FLAGS := -O3
 $(BUILD_DIR)/src/libc/%.o: OPT_FLAGS := -O3
-$(BUILD_DIR)/src/libc/b%.o: ASM_OPT_FLAGS := -O2 
+$(BUILD_DIR)/src/libc/b%.o: ASM_OPT_FLAGS := -O2
 $(BUILD_DIR)/src/libc/ll.o: MIPSISET := -mips3 -o32
 $(BUILD_DIR)/src/libc/ll%.o: MIPSISET := -mips3 -o32
 $(BUILD_DIR)/src/libc/ll.o: OPT_FLAGS := -O1
@@ -107,17 +110,18 @@ $(BUILD_DIR)/src/libc/ll%.o: OPT_FLAGS := -O1
 $(BUILD_DIR)/src/os/exceptasm.o: MIPSISET := -mips3 -o32
 
 
-#ifeq ($(TARGET_N64),1)
+ifeq ($(TARGET_N64),1)
   TARGET_CFLAGS := -nostdinc -I include/2.0I -I include/2.0I/PR -DTARGET_N64 -D_FINALROM -DF3DEX_GBI -DNDEBUG
   CC_CFLAGS := -fno-builtin
-#endif
+endif
 
-INCLUDE_CFLAGS := -I include/2.0I -I include/2.0I/PR
+INCLUDE_CFLAGS := -Iinclude/2.0I -Iinclude/2.0I/PR
+DEFINITION_CFLAGS := -D_LANGUAGE_C -D_MIPS_SZINT=32 -D_MIPS_SZLONG=32
 
 # Check code syntax with host compiler
 CC_CHECK := gcc -fsyntax-only $(CC_CFLAGS) $(TARGET_CFLAGS) $(INCLUDE_CFLAGS) -std=gnu90 -Wall -Wextra -Wno-format-security -DNON_MATCHING -DAVOID_UB $(VERSION_CFLAGS) $(GRUCODE_CFLAGS) -D_LANGUAGE_C -D_MIPS_SZINT=32 -D_MIPS_SZLONG=32
-ASFLAGS = -v -Wab,-r4300_mul -non_shared -G 0 $(TARGET_CFLAGS) $(INCLUDE_CFLAGS) $(VERSION_CFLAGS) $(MIPSISET) $(ASM_OPT_FLAGS)
-CFLAGS = -Wab,-r4300_mul -non_shared -G 0 -Xcpluscomm -fullwarn $(OPT_FLAGS) $(TARGET_CFLAGS) $(INCLUDE_CFLAGS) $(VERSION_CFLAGS) $(MIPSISET)
+ASFLAGS = -v -non_shared $(TARGET_CFLAGS) $(INCLUDE_CFLAGS) $(VERSION_CFLAGS) $(ASM_OPT_FLAGS)
+CFLAGS = $(OPT_FLAGS) $(TARGET_CFLAGS) $(INCLUDE_CFLAGS) $(VERSION_CFLAGS) $(DEFINITION_CFLAGS)
 OBJCOPYFLAGS := --pad-to=0x800000 --gap-fill=0xFF
 SYMBOL_LINKING_FLAGS := $(addprefix -R ,$(SEG_FILES))
 LDFLAGS := -T undefined_syms.txt -T $(BUILD_DIR)/$(LD_SCRIPT) -Map $(BUILD_DIR)/sm64.$(VERSION).map --no-check-sections $(SYMBOL_LINKING_FLAGS)
@@ -160,7 +164,7 @@ distclean:
 
 
 $(BUILD_DIR)/%.o: %.c
-	@$(CC_CHECK) -MMD -MP -MT $@ -MF $(BUILD_DIR)/$*.d $< 
+	$(CC_CHECK) -MMD -MP -MT $@ -MF $(BUILD_DIR)/$*.d $<
 	$(CC) -c $(CFLAGS) -o $@ $<
 
 
